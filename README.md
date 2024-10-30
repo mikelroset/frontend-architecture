@@ -133,7 +133,7 @@ your system
 - The big picture of the system
 - It does not change over time
 
-![system-context](https://tinyurl.com/3826mpck)
+![system-context](./system-context.png)
 
 **Example:** The system context of a banking application
 
@@ -143,7 +143,7 @@ your system
 - It zooms in one of our system contexts
 - It barely changes over time
 
-![containers](https://tinyurl.com/mr2ymn54)
+![containers](./containers.png)
 
 **Example:** The container of a banking application
 
@@ -154,7 +154,7 @@ your system
 - It represents only the most important parts of the system, not all of them
 - It changes quite often
 
-![main-components](https://tinyurl.com/y9ee96v7)
+![main-components](./main-components.png)
 
 **Example:** The main components of a banking application
 
