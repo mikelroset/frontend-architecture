@@ -190,7 +190,7 @@ The influencers of your architecture
 
 #### CONSTRAINTS
 
-They are not negotiable, otherwise they are not constraints :)
+They are not negotiable, otherwise they are not constraints 😄
 
 **Example:**
 
@@ -414,13 +414,13 @@ something that shows up in every page
                         /  \
                        /    \
                       /      \
-      +----------------+     +----------------+     dependency    +----------------+
-      |      Home      |     |   Restaurant   |----------------==>|    MenuItem    |    ....
-      +----------------+     +----------------+                   +----------------+
-      |      Team 1    |     |      Team 2    |                   |       ...      |
-      |       or       |     |       or       |                   |                |
-      |   Developer 1  |     |   Developer 2  |                   |                |
-      +----------------+     +----------------+                   +----------------+
+      +----------------+     +----------------+    dependency    +----------------+
+      |      Home      |     |   Restaurant   |----------------->|    MenuItem    |    ....
+      +----------------+     +----------------+                  +----------------+
+      |      Team 1    |     |      Team 2    |                  |       ...      |
+      |       or       |     |       or       |                  |                |
+      |   Developer 1  |     |   Developer 2  |                  |                |
+      +----------------+     +----------------+                  +----------------+
 
 ### THE DESIGN DOCUMENTATION
 
@@ -563,3 +563,211 @@ Smaller components (buttons, inputs, dropdowns, etc.) that are used by other com
       +-----------------+    +-----------------+
 
 A lot of Modules have only 1 screen
+
+### IMPLEMENTING ENTITIES
+
+- Entities are the main building blocks of our domain
+- They show up in the entire system, not just in our user interface but also in
+  our databases, databases tables, API endpoints, etc.
+
+Normally we have a fetch function to grab our data:
+
+```js
+export async function fetchRestaurant(
+  restaurantId: string
+): Promise<RestaurantResponse> {
+  const response = await fetch(`/api/restaurants/${restaurantId}`);
+  return response.json();
+}
+```
+
+This is probably fine with a simple amount of data.
+
+In case of Entities, is better to have a layer of abstraction on top of it
+because we can have a response from the API which is not really helpful for the
+frontend, for example:
+
+```typescript
+data: {
+  id: string;
+  attributes: {
+    name: string;
+    description: string;
+    image: string;
+  };
+  relationships: {
+    menu: {
+      data: {
+        id: string;
+        type: string;
+      };
+    };
+    reviews: {
+      data: [
+        {
+          id: string;
+          type: string;
+        },
+      ];
+    };
+  };
+}
+```
+
+As a frontend, we don't care about "attributes" and "relationships" difference
+in terms of nesting the JSON response. Or we don't need all the information. To
+solve this, we create a Model:
+
+- Define a Type
+- Create a Class or function aggregating all the data (also from different data
+  sources if needed) we need
+
+```typescript
+// Define the type to reflect the API's complex response structure
+type ApiResponse = {
+  data: {
+    id: string;
+    attributes: {
+      name: string;
+      description: string;
+      image: string;
+    };
+    relationships: {
+      menu: {
+        data: {
+          id: string;
+          type: string;
+        };
+      };
+      reviews: {
+        data: Array<{
+          id: string;
+          type: string;
+        }>;
+      };
+    };
+  };
+};
+```
+
+```typescript
+// Simplified model for the frontend
+type MenuItem = {
+  id: string;
+  name: string;
+  description: string;
+  imageUrl: string;
+  menuId: string;
+  reviewIds: string[];
+};
+```
+
+```typescript
+class MenuItemModel implements MenuItem {
+  id: string;
+  name: string;
+  description: string;
+  imageUrl: string;
+  menuId: string;
+  reviewIds: string[];
+
+  constructor(apiResponse: ApiResponse) {
+    const { id, attributes, relationships } = apiResponse.data;
+
+    this.id = id;
+    this.name = attributes.name;
+    this.description = attributes.description;
+    this.imageUrl = attributes.image;
+    this.menuId = relationships.menu.data.id;
+    this.reviewIds = relationships.reviews.data.map((review) => review.id);
+  }
+}
+```
+
+```typescript
+const apiResponse: ApiResponse = {
+  data: {
+    id: "123",
+    attributes: {
+      name: "Burger",
+      description: "Delicious veggie burger",
+      image: "/images/burger.png",
+    },
+    relationships: {
+      menu: {
+        data: {
+          id: "menu-456",
+          type: "menu",
+        },
+      },
+      reviews: {
+        data: [
+          { id: "review-789", type: "review" },
+          { id: "review-101", type: "review" },
+        ],
+      },
+    },
+  },
+};
+
+const menuItem = new MenuItemModel(apiResponse);
+console.log(menuItem);
+```
+
+### GUARDRAILS AND CONSTRAINTS
+
+#### DEPENDENCY CRUISER
+
+A tool to validate the dependencies of our code base against a set of rules
+
+**Example:**
+
+Rule: Modules should not depend on each other
+
+                                                  +-----------------+
+                                                  |     Modules     |\
+                                                  +-----------------+ \
+                                                 /\                    \
+                                                /  \                    \
+                                               /    \                    \
+                             +-----------------+    +----------- ------+  \+-----------------+
+                             |    Restaurant   |    |    Delivery     |    |      Search     |
+                             +-----------------+    +-----------------+    +-----------------+
+                                     /\                                             /\
+                                    /  \                                           /  \
+                                   /    \                                         /    \
+                 +-----------------+    +-----------------+     +-----------------+    +-----------------+
+                 |    Feature 1    |    |    Feature 2    |     |    Feature 3    |    |    Feature 4    |
+                 +-----------------+    +-----------------+     +-----------------+    +-----------------+
+                          /\                                            /\                      \
+                         /  \                                          /  \                      \
+                        /    \                                        /    \                      \
+      +-----------------+    +-----------------+    +-----------------+    +-----------------+    +-----------------+
+      | ✅ Component 1  |    | ✅ Component 2  |    | ✅ Component 3  |    | ✅ Component 4  |    | ❌ Component 2  |
+      +-----------------+    +-----------------+    +-----------------+    +-----------------+    +-----------------+
+
+Feature 4 needs to use Component 2, but it's not allowed because Component 2
+belongs to Module Restaurant and Feature 4 belongs to Module Search
+
+Dependecy cruiser will look for this kind of rules previously defined and will
+break the build if it finds a violation
+
+#### COMMONALITY
+
+Used mostly in Monorepos. Check for things like circular dependencies. You can
+also define ownership of certain packages, tag them, etc.
+
+#### BUNDLESIZE
+
+Simple check of our bundles. You can set limits that, if they are exceeded,
+will break the build
+
+#### PERFORMANCE BUDGET
+
+Define thresholds for different sort of web metrics like: FPS, TTI, FCP, LCP,
+etc. (Ex. Speedcurve)
+
+#### SONARLINT
+
+To help managing the complexity of our code base (cognitive complexity like too
+many execution paths, functions too long, etc.)
